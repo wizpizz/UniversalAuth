@@ -59,13 +59,13 @@ public class Module implements IXposedHookLoadPackage {
                 // Hook com.android.systemui.statusbar.phone.StatusBar.start
                 Class<?> statusBarClass = lpparam.classLoader.loadClass(STATUS_BAR_CLASS);
                 hookStatusBar(lpparam, statusBarClass);
-            } catch(Throwable e) {
+            } catch (Throwable e) {
                 // Failed to hook status bar class, we are on Android 13 DP Beta 1+
                 // Try using another class
                 try {
                     Class<?> statusBarClass = lpparam.classLoader.loadClass("com.android.systemui.statusbar.phone.CentralSurfaces");
                     hookStatusBar(lpparam, statusBarClass);
-                } catch(Throwable e2) {
+                } catch (Throwable e2) {
                     // Android 14: Moved to CentralSurfaceImpl
                     try {
                         Class<?> statusBarClass = lpparam.classLoader.loadClass("com.android.systemui.statusbar.phone.CentralSurfacesImpl");
@@ -125,19 +125,30 @@ public class Module implements IXposedHookLoadPackage {
 
     private void addHookEarlyUnlock(Class<?> kumClazz, XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         Field mStatusBarStateControllerField = asAccessible(kumClazz.getDeclaredField("mStatusBarStateController"));
-        Field mKeyguardIsVisibleField = asAccessible(kumClazz.getDeclaredField("mKeyguardIsVisible"));
+        Field mKeyguardIsVisibleField;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            // Android 14
+            mKeyguardIsVisibleField = asAccessible(kumClazz.getDeclaredField("mKeyguardShowing"));
+        } else {
+            mKeyguardIsVisibleField = asAccessible(kumClazz.getDeclaredField("mKeyguardIsVisible"));
+        }
         Field mDeviceInteractiveField = asAccessible(kumClazz.getDeclaredField("mDeviceInteractive"));
         Field mGoingToSleepField = asAccessible(kumClazz.getDeclaredField("mGoingToSleep"));
         Field mContextField = asAccessible(kumClazz.getDeclaredField("mContext"));
 
-        Class<?> sbscClazz = lpparam.classLoader.loadClass(STATUS_BAR_STATE_CONTROLLER_CLASS);
+        Class<?> sbscClazz;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            sbscClazz = lpparam.classLoader.loadClass("com.android.systemui.statusbar.StatusBarStateControllerImpl");
+        } else {
+            sbscClazz = lpparam.classLoader.loadClass(STATUS_BAR_STATE_CONTROLLER_CLASS);
+        }
         Method getStateMethod = asAccessible(sbscClazz.getDeclaredMethod("getState"));
 
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                 Object kum = param.thisObject;
-                if(isUserInLockdown(kum)) {
+                if (isUserInLockdown(kum)) {
                     return;
                 }
 
@@ -161,7 +172,7 @@ public class Module implements IXposedHookLoadPackage {
             }
         };
 
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2) {
             // Android 12L+
             XposedHelpers.findAndHookMethod(
                     kumClazz,
@@ -199,10 +210,13 @@ public class Module implements IXposedHookLoadPackage {
     private void hookStatusBar(Class<?> statusBarClass, ClassLoader classLoader, XC_MethodHook.MethodHookParam param) throws Throwable {
         Object statusBar = param.thisObject;
         Class<?> systemUiClass;
-        if(Build.VERSION.SDK_INT > Build.VERSION_CODES.S_V2) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            // >= Android 14: Same as SystemUi
+            systemUiClass = classLoader.loadClass("com.android.systemui.statusbar.phone.CentralSurfacesImpl");
+        } else if (Build.VERSION.SDK_INT > Build.VERSION_CODES.S_V2) {
             // >= Android 13
             systemUiClass = classLoader.loadClass(CORE_STARTABLE_CLASS);
-        } else if(Build.VERSION.SDK_INT == Build.VERSION_CODES.S_V2) {
+        } else if (Build.VERSION.SDK_INT == Build.VERSION_CODES.S_V2) {
             // == Android 12L
             try {
                 // Try loading SystemUI class for Android 12L
@@ -223,7 +237,7 @@ public class Module implements IXposedHookLoadPackage {
 
         UnlockReceiver.INSTANCE.setup(context, statusBar, intent -> {
             try {
-                if(!isUserInLockdown(kum)) {
+                if (!isUserInLockdown(kum)) {
                     method.unlock(intent);
                 }
             } catch (Throwable throwable) {
