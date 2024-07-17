@@ -4,7 +4,7 @@ import static ax.nd.universalauth.xposed.common.XposedConstants.EXTRA_BYPASS_KEY
 import static ax.nd.universalauth.xposed.common.XposedConstants.EXTRA_UNLOCK_MODE;
 import static ax.nd.universalauth.xposed.common.XposedConstants.MODE_UNLOCK_FADING;
 
-import android.app.ActivityManager;
+import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
@@ -66,10 +66,16 @@ public class Module implements IXposedHookLoadPackage {
                     Class<?> statusBarClass = lpparam.classLoader.loadClass("com.android.systemui.statusbar.phone.CentralSurfaces");
                     hookStatusBar(lpparam, statusBarClass);
                 } catch(Throwable e2) {
-                    XposedBridge.log("Failed to hook status bar! Initial attempt failed with:");
-                    XposedBridge.log(e);
-                    XposedBridge.log("We tried an alternative class but that failed too:");
-                    XposedBridge.log(e2);
+                    // Android 14: Moved to CentralSurfaceImpl
+                    try {
+                        Class<?> statusBarClass = lpparam.classLoader.loadClass("com.android.systemui.statusbar.phone.CentralSurfacesImpl");
+                        hookStatusBar(lpparam, statusBarClass);
+                    } catch (Throwable e3) {
+                        XposedBridge.log("Failed to hook status bar! Initial attempt failed with:");
+                        XposedBridge.log(e);
+                        XposedBridge.log("We tried an alternative class but that failed too:");
+                        XposedBridge.log(e2);
+                    }
                 }
             }
 
