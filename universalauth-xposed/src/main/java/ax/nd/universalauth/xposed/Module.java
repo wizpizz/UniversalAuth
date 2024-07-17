@@ -96,18 +96,14 @@ public class Module implements IXposedHookLoadPackage {
     }
 
     private void hookStatusBar(XC_LoadPackage.LoadPackageParam lpparam, Class<?> statusBarClass) {
-        XposedHelpers.findAndHookMethod(
-                statusBarClass,
-                "start",
-                new XC_MethodHook() {
-                    @Override
-                    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+        XposedHelpers.findAndHookMethod(statusBarClass, "start", new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
 //                            XposedBridge.log("FaceUnlock hook pre-install!");
-                        hookStatusBar(statusBarClass, lpparam.classLoader, param);
+                hookStatusBar(statusBarClass, lpparam.classLoader, param);
 //                            XposedBridge.log("FaceUnlock hook installed!");
-                    }
-                }
-        );
+            }
+        });
     }
 
     private Method getIsUserInLockdownMethod(Class<?> kumClazz) {
@@ -119,8 +115,7 @@ public class Module implements IXposedHookLoadPackage {
     }
 
     private boolean isUserInLockdown(Object kum) throws InvocationTargetException, IllegalAccessException {
-        return isUserInLockdownMethod != null
-                && (boolean) isUserInLockdownMethod.invoke(kum, Util.INSTANCE.getCurrentUser());
+        return isUserInLockdownMethod != null && (boolean) isUserInLockdownMethod.invoke(kum, Util.INSTANCE.getCurrentUser());
     }
 
     private void addHookEarlyUnlock(Class<?> kumClazz, XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
@@ -160,8 +155,7 @@ public class Module implements IXposedHookLoadPackage {
 
                 // From: com.android.keyguard.KeyguardUpdateMonitor.shouldListenForFace
                 final boolean statusBarShadeLocked = sbscState == SHADE_LOCKED;
-                final boolean awakeKeyguard = mKeyguardIsVisible && mDeviceInteractive && !mGoingToSleep
-                        && !statusBarShadeLocked;
+                final boolean awakeKeyguard = mKeyguardIsVisible && mDeviceInteractive && !mGoingToSleep && !statusBarShadeLocked;
 
                 Object prevAwakeKeyguard = XposedHelpers.setAdditionalInstanceField(kum, KEYGUARD_UPDATE_MONITOR_LAST_MODE, awakeKeyguard);
 
@@ -174,24 +168,20 @@ public class Module implements IXposedHookLoadPackage {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2) {
             // Android 12L+
-            XposedHelpers.findAndHookMethod(
-                    kumClazz,
-                    "updateFaceListeningState",
-                    int.class,
-                    hook
-            );
+            try {
+                XposedHelpers.findAndHookMethod(kumClazz, "updateFaceListeningState", int.class, hook);
+            } catch (Throwable th) {
+                // hook the fingerprint for some ROMs
+                XposedHelpers.findAndHookMethod(kumClazz, "updateFingerprintListeningState", int.class, hook);
+            }
+
         } else {
-            XposedHelpers.findAndHookMethod(
-                    kumClazz,
-                    "updateFaceListeningState",
-                    hook
-            );
+            XposedHelpers.findAndHookMethod(kumClazz, "updateFaceListeningState", hook);
         }
     }
 
     private void hookEarlyUnlock(Context context, boolean newAwakeKeyguard) throws Throwable {
-        context.sendBroadcast(new Intent(XposedConstants.ACTION_EARLY_UNLOCK)
-                .putExtra(XposedConstants.EXTRA_EARLY_UNLOCK_MODE, newAwakeKeyguard));
+        context.sendBroadcast(new Intent(XposedConstants.ACTION_EARLY_UNLOCK).putExtra(XposedConstants.EXTRA_EARLY_UNLOCK_MODE, newAwakeKeyguard));
     }
 
     private <T extends AccessibleObject> T asAccessible(T a) {
@@ -257,9 +247,7 @@ public class Module implements IXposedHookLoadPackage {
 
     private UnlockMethod hookStatusBarBiometricUnlock(Object statusBar, Class<?> statusBarClass) throws Throwable {
         Object biometricUnlockController = getBiometricUnlockControllerFromStatusBar(statusBar, statusBarClass);
-        Method startWakeAndUnlock = asAccessible(biometricUnlockController
-                .getClass()
-                .getDeclaredMethod("startWakeAndUnlock", int.class));
+        Method startWakeAndUnlock = asAccessible(biometricUnlockController.getClass().getDeclaredMethod("startWakeAndUnlock", int.class));
 
         return intent -> {
             if (intent.getBooleanExtra(EXTRA_BYPASS_KEYGUARD, true)) {
