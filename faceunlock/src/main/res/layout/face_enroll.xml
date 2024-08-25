@@ -18,7 +18,7 @@
             android:layout_centerHorizontal="true"
             android:layout_marginTop="@dimen/top_icon_margin_top"
             android:src="@drawable/ic_face_auth"
-            android:tint="@color/theme_color" />
+            app:tint="@color/theme_color" />
 
         <TextView
             android:id="@id/tv_header"
